@@ -97,7 +97,7 @@
                       <el-option label="姓名" value="name" />
                       <el-option label="姓氏" value="lastName" />
                       <el-option label="名字" value="firstName" />
-                      <el-option label="用���名" value="username" />
+                      <el-option label="用户名" value="username" />
                     </el-option-group>
                     <el-option-group label="联系方式">
                       <el-option label="邮箱" value="email" />
@@ -233,6 +233,25 @@ import { useTableInfoStore } from '@/store/modules/tableInfo'
 import type { FormInstance } from 'element-plus'
 import type { Table, Field } from '@/types/table'
 
+// 类型定义
+interface FieldConfig {
+  type: string
+  min?: number
+  max?: number
+  precision?: number
+  length?: number
+  casing?: 'none' | 'lower' | 'upper'
+  from?: Date
+  to?: Date
+}
+
+interface FormData {
+  table: string | number
+  count: number
+  format: 'sql' | 'json' | 'csv'
+  fieldConfigs: Record<string, FieldConfig>
+}
+
 // 状态
 const formRef = ref<FormInstance>()
 const previewData = ref('')
@@ -248,20 +267,11 @@ const tables = ref<Table[]>([])
 const fields = ref<Field[]>([])
 
 // 表单数据
-const formData = reactive({
+const formData = reactive<FormData>({
   table: '',
   count: 10,
   format: 'sql',
-  fieldConfigs: {} as Record<string, {
-    type: string
-    min?: number
-    max?: number
-    precision?: number
-    length?: number
-    casing?: 'none' | 'lower' | 'upper'
-    from?: Date
-    to?: Date
-  }>
+  fieldConfigs: {}
 })
 
 // 初始化
@@ -271,7 +281,20 @@ const init = async () => {
     tables.value = data
   } catch (error) {
     console.error('Init failed:', error)
+    ElMessage.error('获取表列表失败')
   }
+}
+
+// 获取默认生成器类型
+const getDefaultGeneratorType = (field: Field): string => {
+  if (field.autoIncrement) return 'autoIncrement'
+  
+  const type = field.type.toLowerCase()
+  if (type.includes('int') || type.includes('decimal') || type.includes('float')) return 'number'
+  if (type.includes('char') || type.includes('text')) return 'string'
+  if (type.includes('date') || type.includes('time')) return 'datetime'
+  if (type.includes('bool')) return 'boolean'
+  return 'string'
 }
 
 // 处理表变化
@@ -282,7 +305,7 @@ const handleTableChange = async (tableId: number) => {
       fields.value = table.fields
       // 初始化字段配置
       formData.fieldConfigs = {}
-      table.fields.forEach(field => {
+      table.fields.forEach((field: Field) => {
         formData.fieldConfigs[field.name] = {
           type: getDefaultGeneratorType(field),
           min: 0,
@@ -297,27 +320,7 @@ const handleTableChange = async (tableId: number) => {
     }
   } catch (error) {
     console.error('Get table detail failed:', error)
-  }
-}
-
-// 获取默认生成器类型
-const getDefaultGeneratorType = (field: Field): string => {
-  if (field.autoIncrement) return 'autoIncrement'
-  
-  switch (field.type.toLowerCase()) {
-    case 'int':
-    case 'bigint':
-    case 'decimal':
-      return 'number'
-    case 'varchar':
-    case 'text':
-      return 'string'
-    case 'datetime':
-      return 'datetime'
-    case 'boolean':
-      return 'boolean'
-    default:
-      return 'string'
+    ElMessage.error('获取表详情失败')
   }
 }
 
@@ -326,99 +329,120 @@ const generateValue = (fieldName: string): any => {
   const config = formData.fieldConfigs[fieldName]
   if (!config) return null
 
-  switch (config.type) {
-    case 'autoIncrement':
-      return null // 由数据库自动生成
-    case 'number':
-      return faker.number.float({
-        min: config.min,
-        max: config.max,
-        precision: config.precision
-      })
-    case 'string':
-      let value = faker.string.alpha(config.length)
-      switch (config.casing) {
-        case 'lower':
-          return value.toLowerCase()
-        case 'upper':
-          return value.toUpperCase()
-        default:
-          return value
-      }
-    case 'boolean':
-      return faker.datatype.boolean()
-    case 'datetime':
-      return faker.date.between({
-        from: config.from || new Date(2020, 0, 1),
-        to: config.to || new Date()
-      })
-    case 'name':
-      return faker.person.fullName()
-    case 'lastName':
-      return faker.person.lastName()
-    case 'firstName':
-      return faker.person.firstName()
-    case 'username':
-      return faker.internet.userName()
-    case 'email':
-      return faker.internet.email()
-    case 'phone':
-      return faker.phone.number()
-    case 'address':
-      return faker.location.streetAddress()
-    case 'company':
-      return faker.company.name()
-    case 'jobTitle':
-      return faker.person.jobTitle()
-    case 'department':
-      return faker.commerce.department()
-    case 'domain':
-      return faker.internet.domainName()
-    case 'url':
-      return faker.internet.url()
-    case 'ip':
-      return faker.internet.ip()
-    default:
-      return null
+  try {
+    switch (config.type) {
+      case 'autoIncrement':
+        return null // 由数据库自动生成
+      case 'number':
+        return faker.number.float({
+          min: config.min,
+          max: config.max,
+          precision: config.precision
+        })
+      case 'string':
+        let value = faker.string.alpha(config.length || 10)
+        switch (config.casing) {
+          case 'lower':
+            return value.toLowerCase()
+          case 'upper':
+            return value.toUpperCase()
+          default:
+            return value
+        }
+      case 'boolean':
+        return faker.datatype.boolean()
+      case 'datetime':
+        return faker.date.between({
+          from: config.from || new Date(2020, 0, 1),
+          to: config.to || new Date()
+        })
+      case 'name':
+        return faker.person.fullName()
+      case 'lastName':
+        return faker.person.lastName()
+      case 'firstName':
+        return faker.person.firstName()
+      case 'username':
+        return faker.internet.userName()
+      case 'email':
+        return faker.internet.email()
+      case 'phone':
+        return faker.phone.number()
+      case 'address':
+        return faker.location.streetAddress()
+      case 'company':
+        return faker.company.name()
+      case 'jobTitle':
+        return faker.person.jobTitle()
+      case 'department':
+        return faker.commerce.department()
+      case 'domain':
+        return faker.internet.domainName()
+      case 'url':
+        return faker.internet.url()
+      case 'ip':
+        return faker.internet.ip()
+      default:
+        return null
+    }
+  } catch (error) {
+    console.error(`Error generating value for ${fieldName}:`, error)
+    return null
   }
 }
 
 // 获取预览值
 const getPreviewValue = (fieldName: string): string => {
-  const value = generateValue(fieldName)
-  if (value === null) return 'NULL'
-  if (typeof value === 'string') return value
-  if (value instanceof Date) return value.toISOString()
-  return String(value)
+  try {
+    const value = generateValue(fieldName)
+    if (value === null) return 'NULL'
+    if (typeof value === 'string') return value
+    if (value instanceof Date) return value.toISOString()
+    return String(value)
+  } catch (error) {
+    console.error(`Error getting preview value for ${fieldName}:`, error)
+    return 'ERROR'
+  }
 }
 
 // 生成数据
 const generateData = () => {
-  const data = []
-  const tableName = tables.value.find(t => t.id === formData.table)?.name
+  try {
+    const data = []
+    const selectedTable = tables.value.find(t => t.id === formData.table)
+    const tableName = selectedTable?.name
 
-  if (!tableName) return
+    if (!tableName) {
+      ElMessage.warning('请选择表')
+      return
+    }
 
-  for (let i = 0; i < formData.count; i++) {
-    const record: Record<string, any> = {}
-    fields.value.forEach(field => {
-      if (!formData.fieldConfigs[field.name].type === 'autoIncrement') {
-        record[field.name] = generateValue(field.name)
-      }
-    })
-    data.push(record)
-  }
+    for (let i = 0; i < formData.count; i++) {
+      const record: Record<string, any> = {}
+      fields.value.forEach(field => {
+        if (formData.fieldConfigs[field.name].type !== 'autoIncrement') {
+          record[field.name] = generateValue(field.name)
+        }
+      })
+      data.push(record)
+    }
 
-  switch (formData.format) {
-    case 'sql':
-      previewData.value = generateSqlString(tableName, data)
-      break
-    case 'json':
-      previewData.value = JSON.stringify(data, null, 2)
-      break
-    case 'csv':
-      previewData.value = generateCsvString(data)
-      break
+    switch (formData.format) {
+      case 'sql':
+        previewData.value = generateSqlString(tableName, data)
+        break
+      case 'json':
+        previewData.value = JSON.stringify(data, null, 2)
+        break
+      case 'csv':
+        previewData.value = generateCsvString(data)
+        break
+    }
+
+    ElMessage.success('数据生成成功')
+  } catch (error) {
+    console.error('Generate data failed:', error)
+    ElMessage.error('数据生成失败')
   }
 }
 
@@ -486,19 +510,26 @@ const handleExport = () => {
     return
   }
 
-  const blob = new Blob([previewData.value], {
-    type: formData.format === 'json'
-      ? 'application/json'
-      : formData.format === 'csv'
-        ? 'text/csv'
-        : 'text/plain'
-  })
-  
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `mock_data.${formData.format}`
-  link.click()
-  URL.revokeObjectURL(link.href)
+  try {
+    const blob = new Blob([previewData.value], {
+      type: formData.format === 'json'
+        ? 'application/json'
+        : formData.format === 'csv'
+          ? 'text/csv'
+          : 'text/plain'
+    })
+    
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `mock_data.${formData.format}`
+    link.click()
+    URL.revokeObjectURL(link.href)
+    
+    ElMessage.success('导出成功')
+  } catch (error) {
+    console.error('Export failed:', error)
+    ElMessage.error('导出失败')
+  }
 }
 
 // 复制
@@ -508,6 +539,7 @@ const handleCopy = async () => {
     ElMessage.success('复制成功')
   } catch (error) {
     console.error('Copy failed:', error)
+    ElMessage.error('复制失败')
   }
 }
 
@@ -516,31 +548,64 @@ init()
 </script>
 
 <style lang="scss" scoped>
-.mock-data {
-  .field-config {
-    margin-bottom: 20px;
-    padding-bottom: 20px;
-    border-bottom: 1px solid var(--border-color-light);
+.page-container {
+  padding: 20px;
+  
+  .mock-data {
+    .field-config {
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--el-border-color-light);
 
-    &:last-child {
-      margin-bottom: 0;
-      padding-bottom: 0;
-      border-bottom: none;
+      &:last-child {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
+      }
     }
-  }
 
-  .preview-value {
-    padding: 8px;
-    background-color: var(--el-bg-color);
-    border-radius: 4px;
-    min-height: 36px;
-    word-break: break-all;
-  }
+    .preview-value {
+      padding: 8px 12px;
+      background-color: var(--el-bg-color-page);
+      border: 1px solid var(--el-border-color-lighter);
+      border-radius: 4px;
+      min-height: 36px;
+      word-break: break-all;
+      font-family: monospace;
+    }
 
-  .preview {
-    background-color: var(--el-bg-color);
-    border-radius: 4px;
-    padding: 20px;
+    .preview {
+      background-color: var(--el-bg-color-page);
+      border-radius: 4px;
+      padding: 20px;
+
+      :deep(.cm-editor) {
+        border: 1px solid var(--el-border-color-lighter);
+        border-radius: 4px;
+        font-family: monospace;
+      }
+    }
+
+    h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    h4 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    .text-secondary {
+      color: var(--el-text-color-secondary);
+      margin-left: 8px;
+    }
+
+    .el-divider {
+      margin: 32px 0;
+    }
   }
 }
 </style> 
