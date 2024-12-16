@@ -82,7 +82,7 @@
               </el-select>
             </el-form-item>
             
-            <el-form-item label="导出��项">
+            <el-form-item label="导出选项">
               <el-checkbox-group v-model="exportSettings.options">
                 <el-checkbox label="includeDropTable">包含DROP TABLE语句</el-checkbox>
                 <el-checkbox label="includeComments">包含注释</el-checkbox>
@@ -103,43 +103,67 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, reactive } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, reactive, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import PageContainer from '@/components/layout/PageContainer.vue'
+import { useSettingsStore } from '@/store/modules/settings'
+import type { BasicSettings, GenerateSettings, ExportSettings } from '@/types/settings'
+
+const settingsStore = useSettingsStore()
 
 // 基本设置
-const basicSettings = reactive({
-  systemName: 'SQL生成器',
-  dbType: 'mysql',
-  charset: 'utf8mb4',
-  collation: 'utf8mb4_general_ci'
+const basicSettings = reactive<BasicSettings>({
+  ...settingsStore.getBasicSettings
 })
 
 // 生成设置
-const generateSettings = reactive({
-  sqlStyle: 'uppercase',
-  indentStyle: 'space',
-  indentSize: 2,
-  maxLineLength: 120
+const generateSettings = reactive<GenerateSettings>({
+  ...settingsStore.getGenerateSettings
 })
 
 // 导出设置
-const exportSettings = reactive({
-  defaultFormat: 'sql',
-  fileEncoding: 'utf8',
-  options: ['includeComments']
+const exportSettings = reactive<ExportSettings>({
+  ...settingsStore.getExportSettings
+})
+
+// 初始化
+onMounted(() => {
+  settingsStore.initSettings()
 })
 
 // 保存设置
-const handleSave = () => {
-  // TODO: 实现保存设置到本地存储或后端
-  ElMessage.success('设置保存成功')
+const handleSave = async () => {
+  try {
+    settingsStore.updateBasicSettings(basicSettings)
+    settingsStore.updateGenerateSettings(generateSettings)
+    settingsStore.updateExportSettings(exportSettings)
+    ElMessage.success('设置保存成功')
+  } catch (error) {
+    console.error('Save settings failed:', error)
+    ElMessage.error('设置保存失败')
+  }
 }
 
 // 重置设置
-const handleReset = () => {
-  // TODO: 实现重置设置到默认值
-  ElMessage.warning('设置已重置')
+const handleReset = async () => {
+  try {
+    await ElMessageBox.confirm('确定要重置所有设置吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    
+    settingsStore.resetSettings()
+    Object.assign(basicSettings, settingsStore.getBasicSettings)
+    Object.assign(generateSettings, settingsStore.getGenerateSettings)
+    Object.assign(exportSettings, settingsStore.getExportSettings)
+    ElMessage.success('设置已重置')
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('Reset settings failed:', error)
+      ElMessage.error('设置重置失败')
+    }
+  }
 }
 </script>
 
