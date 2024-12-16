@@ -5,9 +5,11 @@
         <div class="flex justify-between items-center">
           <h3>模拟数据生成器</h3>
           <div>
-            <el-button type="primary" @click="handleGenerate">生成数据</el-button>
+            <el-button type="primary" :loading="generating" @click="handleGenerate">
+              {{ generating ? '生成中...' : '生成数据' }}
+            </el-button>
             <el-button @click="handleClear">清空</el-button>
-            <el-button @click="handleExport">导出</el-button>
+            <el-button :disabled="!previewData" @click="handleExport">导出</el-button>
           </div>
         </div>
       </template>
@@ -21,7 +23,12 @@
         <!-- 基本配置 -->
         <el-card class="mb-4">
           <template #header>
-            <h4>基本配置</h4>
+            <div class="flex justify-between items-center">
+              <h4>基本配置</h4>
+              <el-button v-if="formData.table" type="primary" link @click="handleSaveTemplate">
+                保存为模板
+              </el-button>
+            </div>
           </template>
 
           <el-row :gutter="20">
@@ -51,6 +58,8 @@
                   v-model="formData.count"
                   :min="1"
                   :max="1000"
+                  :step="10"
+                  step-strictly
                   placeholder="请输入生成数量"
                 />
               </el-form-item>
@@ -59,9 +68,18 @@
             <el-col :span="8">
               <el-form-item label="输出格式" prop="format" required>
                 <el-select v-model="formData.format" placeholder="请选择输出格式">
-                  <el-option label="SQL" value="sql" />
-                  <el-option label="JSON" value="json" />
-                  <el-option label="CSV" value="csv" />
+                  <el-option label="SQL" value="sql">
+                    <span>SQL</span>
+                    <span class="text-secondary">(INSERT 语句)</span>
+                  </el-option>
+                  <el-option label="JSON" value="json">
+                    <span>JSON</span>
+                    <span class="text-secondary">(数组格式)</span>
+                  </el-option>
+                  <el-option label="CSV" value="csv">
+                    <span>CSV</span>
+                    <span class="text-secondary">(逗号分隔)</span>
+                  </el-option>
                 </el-select>
               </el-form-item>
             </el-col>
@@ -97,7 +115,7 @@
                       <el-option label="姓名" value="name" />
                       <el-option label="姓氏" value="lastName" />
                       <el-option label="名字" value="firstName" />
-                      <el-option label="用户名" value="username" />
+                      <el-option label="用名" value="username" />
                     </el-option-group>
                     <el-option-group label="联系方式">
                       <el-option label="邮箱" value="email" />
@@ -255,6 +273,7 @@ interface FormData {
 // 状态
 const formRef = ref<FormInstance>()
 const previewData = ref('')
+const generating = ref(false)
 const tableStore = useTableInfoStore()
 
 // CodeMirror 配置
@@ -303,20 +322,23 @@ const handleTableChange = async (tableId: number) => {
     const table = await tableStore.getTableDetail(tableId)
     if (table) {
       fields.value = table.fields
-      // 初始化字段配置
-      formData.fieldConfigs = {}
-      table.fields.forEach((field: Field) => {
-        formData.fieldConfigs[field.name] = {
-          type: getDefaultGeneratorType(field),
-          min: 0,
-          max: 100,
-          precision: 0,
-          length: 10,
-          casing: 'none',
-          from: new Date(2020, 0, 1),
-          to: new Date()
-        }
-      })
+      // 尝试加载保存的模板
+      loadTemplate(tableId)
+      // 如果没有模板，使用默认配置
+      if (Object.keys(formData.fieldConfigs).length === 0) {
+        table.fields.forEach((field: Field) => {
+          formData.fieldConfigs[field.name] = {
+            type: getDefaultGeneratorType(field),
+            min: 0,
+            max: 100,
+            precision: 0,
+            length: 10,
+            casing: 'none',
+            from: new Date(2020, 0, 1),
+            to: new Date()
+          }
+        })
+      }
     }
   } catch (error) {
     console.error('Get table detail failed:', error)
@@ -335,12 +357,12 @@ const generateValue = (fieldName: string): any => {
         return null // 由数据库自动生成
       case 'number':
         return faker.number.float({
-          min: config.min,
-          max: config.max,
-          precision: config.precision
+          min: config.min ?? 0,
+          max: config.max ?? 100,
+          precision: config.precision ?? 0
         })
       case 'string':
-        let value = faker.string.alpha(config.length || 10)
+        let value = faker.string.alpha(config.length ?? 10)
         switch (config.casing) {
           case 'lower':
             return value.toLowerCase()
@@ -353,8 +375,8 @@ const generateValue = (fieldName: string): any => {
         return faker.datatype.boolean()
       case 'datetime':
         return faker.date.between({
-          from: config.from || new Date(2020, 0, 1),
-          to: config.to || new Date()
+          from: config.from ?? new Date(2020, 0, 1),
+          to: config.to ?? new Date()
         })
       case 'name':
         return faker.person.fullName()
@@ -367,9 +389,9 @@ const generateValue = (fieldName: string): any => {
       case 'email':
         return faker.internet.email()
       case 'phone':
-        return faker.phone.number()
+        return faker.phone.number('1##########') // 生成中国手机号格式
       case 'address':
-        return faker.location.streetAddress()
+        return `${faker.location.state()}${faker.location.city()}${faker.location.street()}` // 生成中国地址格式
       case 'company':
         return faker.company.name()
       case 'jobTitle':
@@ -417,10 +439,15 @@ const generateData = () => {
       return
     }
 
+    if (formData.count <= 0 || formData.count > 1000) {
+      ElMessage.warning('生成数量必须在 1-1000 之间')
+      return
+    }
+
     for (let i = 0; i < formData.count; i++) {
       const record: Record<string, any> = {}
       fields.value.forEach(field => {
-        if (formData.fieldConfigs[field.name].type !== 'autoIncrement') {
+        if (formData.fieldConfigs[field.name]?.type !== 'autoIncrement') {
           record[field.name] = generateValue(field.name)
         }
       })
@@ -439,7 +466,7 @@ const generateData = () => {
         break
     }
 
-    ElMessage.success('数据生成成功')
+    ElMessage.success(`成功生成 ${data.length} 条数据`)
   } catch (error) {
     console.error('Generate data failed:', error)
     ElMessage.error('数据生成失败')
@@ -448,10 +475,14 @@ const generateData = () => {
 
 // 生成 SQL 字符串
 const generateSqlString = (tableName: string, data: Record<string, any>[]): string => {
+  if (data.length === 0) return ''
+
+  const headers = Object.keys(data[0])
+  const insertHeader = `INSERT INTO ${tableName} (${headers.join(', ')})`
+  
   return data.map(record => {
-    const fields = Object.keys(record).filter(k => record[k] !== null)
-    const values = fields.map(f => formatValue(record[f]))
-    return `INSERT INTO ${tableName} (${fields.join(', ')})\nVALUES (${values.join(', ')});`
+    const values = headers.map(h => formatValue(record[h]))
+    return `${insertHeader}\nVALUES (${values.join(', ')});`
   }).join('\n\n')
 }
 
@@ -478,7 +509,7 @@ const generateCsvString = (data: Record<string, any>[]): string => {
 
 // 格式化值
 const formatValue = (value: any): string => {
-  if (value === null) return 'NULL'
+  if (value === null || value === undefined) return 'NULL'
   if (typeof value === 'number') return value.toString()
   if (typeof value === 'boolean') return value ? '1' : '0'
   if (value instanceof Date) return `'${value.toISOString()}'`
@@ -486,12 +517,23 @@ const formatValue = (value: any): string => {
 }
 
 // 处理生成
-const handleGenerate = () => {
+const handleGenerate = async () => {
   if (!formData.table) {
     ElMessage.warning('请选择表')
     return
   }
-  generateData()
+
+  if (formData.count <= 0 || formData.count > 1000) {
+    ElMessage.warning('生成数量必须在 1-1000 之间')
+    return
+  }
+
+  generating.value = true
+  try {
+    await generateData()
+  } finally {
+    generating.value = false
+  }
 }
 
 // 处理清空
@@ -540,6 +582,35 @@ const handleCopy = async () => {
   } catch (error) {
     console.error('Copy failed:', error)
     ElMessage.error('复制失败')
+  }
+}
+
+// 保存为模板
+const handleSaveTemplate = () => {
+  try {
+    const template = {
+      table: formData.table,
+      fieldConfigs: formData.fieldConfigs
+    }
+    localStorage.setItem(`mock_template_${formData.table}`, JSON.stringify(template))
+    ElMessage.success('模板保存成功')
+  } catch (error) {
+    console.error('Save template failed:', error)
+    ElMessage.error('模板保存失败')
+  }
+}
+
+// 加载模板
+const loadTemplate = (tableId: number) => {
+  try {
+    const templateStr = localStorage.getItem(`mock_template_${tableId}`)
+    if (templateStr) {
+      const template = JSON.parse(templateStr)
+      formData.fieldConfigs = template.fieldConfigs
+      ElMessage.success('已加载保存的模板')
+    }
+  } catch (error) {
+    console.error('Load template failed:', error)
   }
 }
 
