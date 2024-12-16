@@ -91,9 +91,21 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
+import type { EChartsType, EChartsOption } from 'echarts'
 import { useTableInfoStore } from '@/store/modules/tableInfo'
 import { useFieldInfoStore } from '@/store/modules/fieldInfo'
-import type { EChartsType } from 'echarts'
+
+interface ChartData {
+  name: string
+  value: number
+}
+
+interface TrendData {
+  query: number[]
+  create: number[]
+  update: number[]
+  delete: number[]
+}
 
 // 状态
 const tableStatsChart = ref<HTMLElement>()
@@ -103,15 +115,14 @@ const relationStatsChart = ref<HTMLElement>()
 const trendStatsChart = ref<HTMLElement>()
 const trendRange = ref<'week' | 'month'>('week')
 
-const tableStore = useTableInfoStore()
-const fieldStore = useFieldInfoStore()
-
-// 图表实例
 let tableStats: EChartsType
 let fieldStats: EChartsType
 let operationStats: EChartsType
 let relationStats: EChartsType
 let trendStats: EChartsType
+
+const tableStore = useTableInfoStore()
+const fieldStore = useFieldInfoStore()
 
 // 初始化图表
 const initCharts = () => {
@@ -135,12 +146,12 @@ const initCharts = () => {
 // 加载表数量统计
 const loadTableStats = async () => {
   const tables = await tableStore.getTableList()
-  const engineStats = tables.reduce((acc, table) => {
+  const engineStats: Record<string, number> = tables.reduce((acc, table) => {
     acc[table.engine] = (acc[table.engine] || 0) + 1
     return acc
   }, {} as Record<string, number>)
 
-  tableStats.setOption({
+  const option: EChartsOption = {
     title: {
       text: '数据库引擎分布',
       left: 'center'
@@ -166,18 +177,20 @@ const loadTableStats = async () => {
         }
       }
     ]
-  })
+  }
+
+  tableStats.setOption(option)
 }
 
 // 加载字段类型统计
 const loadFieldStats = async () => {
   const fields = await fieldStore.getFieldList()
-  const typeStats = fields.reduce((acc, field) => {
+  const typeStats: Record<string, number> = fields.reduce((acc, field) => {
     acc[field.type] = (acc[field.type] || 0) + 1
     return acc
   }, {} as Record<string, number>)
 
-  fieldStats.setOption({
+  const option: EChartsOption = {
     title: {
       text: '字段类型分布',
       left: 'center'
@@ -216,20 +229,21 @@ const loadFieldStats = async () => {
         }))
       }
     ]
-  })
+  }
+
+  fieldStats.setOption(option)
 }
 
 // 加载操作统计
 const loadOperationStats = () => {
-  // 模拟数据
-  const data = [
+  const data: ChartData[] = [
     { name: '查询', value: 150 },
     { name: '新增', value: 50 },
     { name: '修改', value: 30 },
     { name: '删除', value: 10 }
   ]
 
-  operationStats.setOption({
+  const option: EChartsOption = {
     title: {
       text: '操作类型统计',
       left: 'center'
@@ -259,21 +273,20 @@ const loadOperationStats = () => {
         data: data.map(item => item.value)
       }
     ]
-  })
+  }
+
+  operationStats.setOption(option)
 }
 
 // 加载表关系统计
 const loadRelationStats = async () => {
   const tables = await tableStore.getTableList()
-  const relationData = tables.map(table => {
-    const relations = table.fields.filter(field => field.foreignKey).length
-    return {
-      name: table.name,
-      relations
-    }
-  })
+  const relationData = tables.map(table => ({
+    name: table.name,
+    relations: table.fields.filter(field => field.foreignKey).length
+  }))
 
-  relationStats.setOption({
+  const option: EChartsOption = {
     title: {
       text: '表关系数量',
       left: 'center'
@@ -306,12 +319,13 @@ const loadRelationStats = async () => {
         data: relationData.map(item => item.relations)
       }
     ]
-  })
+  }
+
+  relationStats.setOption(option)
 }
 
 // 加载趋势统计
 const loadTrendStats = () => {
-  // 模拟数据
   const days = trendRange.value === 'week' ? 7 : 30
   const dates = Array.from({ length: days }, (_, i) => {
     const date = new Date()
@@ -319,14 +333,14 @@ const loadTrendStats = () => {
     return date.toLocaleDateString()
   }).reverse()
 
-  const data = {
+  const data: TrendData = {
     query: Array.from({ length: days }, () => Math.floor(Math.random() * 100)),
     create: Array.from({ length: days }, () => Math.floor(Math.random() * 30)),
     update: Array.from({ length: days }, () => Math.floor(Math.random() * 20)),
     delete: Array.from({ length: days }, () => Math.floor(Math.random() * 10))
   }
 
-  trendStats.setOption({
+  const option: EChartsOption = {
     title: {
       text: '操作趋势统计',
       left: 'center'
@@ -374,7 +388,9 @@ const loadTrendStats = () => {
         data: data.delete
       }
     ]
-  })
+  }
+
+  trendStats.setOption(option)
 }
 
 // 监听窗口大小变化

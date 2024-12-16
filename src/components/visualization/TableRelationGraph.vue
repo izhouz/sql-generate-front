@@ -66,7 +66,7 @@
 
 <script lang="ts" setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { Graph, Util } from '@antv/g6'
+import { Graph, GraphData, NodeConfig, EdgeConfig, IG6GraphEvent } from '@antv/g6'
 import { ZoomIn, ZoomOut, RefreshRight, Plus, Minus } from '@element-plus/icons-vue'
 import { useTableInfoStore } from '@/store/modules/tableInfo'
 import type { Table } from '@/types/table'
@@ -127,7 +127,7 @@ const graphConfig = {
         fontSize: 10
       }
     }
-  }
+  } as const
 }
 
 // 初始化图
@@ -140,11 +140,12 @@ const initGraph = () => {
   })
 
   // 注册事件
-  graph.value.on('node:click', (evt) => {
+  graph.value.on('node:click', (evt: IG6GraphEvent) => {
     const node = evt.item
     if (node) {
-      const model = node.getModel()
-      selectedTable.value = tableStore.getTableByName(model.id)
+      const model = node.getModel() as NodeConfig
+      const tableName = model.id as string
+      selectedTable.value = tableStore.getTableByName(tableName)
       drawerVisible.value = true
     }
   })
@@ -158,8 +159,8 @@ const loadGraphData = async () => {
   if (!graph.value) return
 
   const tables = await tableStore.getTableList()
-  const nodes: any[] = []
-  const edges: any[] = []
+  const nodes: NodeConfig[] = []
+  const edges: EdgeConfig[] = []
 
   // 添加节点
   tables.forEach(table => {
@@ -174,7 +175,7 @@ const loadGraphData = async () => {
   tables.forEach(table => {
     table.fields.forEach(field => {
       if (field.foreignKey) {
-        const targetTable = tables.find(t => t.id === field.foreignKey?.tableId)
+        const targetTable = tables.find(t => t.name === field.foreignKey?.tableId)
         if (targetTable) {
           edges.push({
             source: table.name,
@@ -186,10 +187,12 @@ const loadGraphData = async () => {
     })
   })
 
-  graph.value.data({
+  const data: GraphData = {
     nodes,
     edges
-  })
+  }
+
+  graph.value.data(data)
   graph.value.render()
   graph.value.fitView()
 }
