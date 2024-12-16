@@ -10,6 +10,20 @@
             </el-button>
             <el-button @click="handleClear">清空</el-button>
             <el-button :disabled="!previewData" @click="handleExport">导出</el-button>
+            <el-dropdown v-if="formData.table" @command="handleBatchCommand">
+              <el-button type="primary" link>
+                批量操作
+                <el-icon class="el-icon--right"><arrow-down /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="setString">设为字符串类型</el-dropdown-item>
+                  <el-dropdown-item command="setNumber">设为数字类型</el-dropdown-item>
+                  <el-dropdown-item command="setNull">允许为空</el-dropdown-item>
+                  <el-dropdown-item command="setNotNull">不允许为空</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </div>
         </div>
       </template>
@@ -89,11 +103,37 @@
         <!-- 字段配置 -->
         <el-card v-if="formData.table">
           <template #header>
-            <h4>字段配置</h4>
+            <div class="flex justify-between items-center">
+              <h4>字段配置</h4>
+              <div>
+                <el-button type="primary" link @click="handleSaveTemplate">
+                  保存为模板
+                </el-button>
+                <el-button type="danger" link @click="handleDeleteTemplate">
+                  删除模板
+                </el-button>
+              </div>
+            </div>
           </template>
 
+          <div class="field-filters mb-4">
+            <el-input
+              v-model="fieldSearchText"
+              placeholder="搜索字段"
+              clearable
+              prefix-icon="Search"
+              class="field-search"
+            />
+            <el-radio-group v-model="fieldTypeFilter" size="small">
+              <el-radio-button label="">全部</el-radio-button>
+              <el-radio-button label="string">字符串</el-radio-button>
+              <el-radio-button label="number">数字</el-radio-button>
+              <el-radio-button label="datetime">日期</el-radio-button>
+            </el-radio-group>
+          </div>
+
           <div
-            v-for="field in fields"
+            v-for="field in filteredFields"
             :key="field.id"
             class="field-config"
           >
@@ -167,14 +207,14 @@
                   <!-- 字符串类型配置 -->
                   <template v-else-if="formData.fieldConfigs[field.name].type === 'string'">
                     <el-row :gutter="10">
-                      <el-col :span="8">
+                      <el-col :span="6">
                         <el-input-number
                           v-model="formData.fieldConfigs[field.name].length"
                           placeholder="长度"
                           :min="1"
                         />
                       </el-col>
-                      <el-col :span="8">
+                      <el-col :span="6">
                         <el-select
                           v-model="formData.fieldConfigs[field.name].casing"
                           placeholder="大小写"
@@ -184,25 +224,79 @@
                           <el-option label="大写" value="upper" />
                         </el-select>
                       </el-col>
+                      <el-col :span="6">
+                        <el-input
+                          v-model="formData.fieldConfigs[field.name].prefix"
+                          placeholder="前缀"
+                        />
+                      </el-col>
+                      <el-col :span="6">
+                        <el-input
+                          v-model="formData.fieldConfigs[field.name].suffix"
+                          placeholder="后缀"
+                        />
+                      </el-col>
                     </el-row>
                   </template>
 
                   <!-- 日期时间类型配置 -->
                   <template v-else-if="formData.fieldConfigs[field.name].type === 'datetime'">
                     <el-row :gutter="10">
-                      <el-col :span="11">
+                      <el-col :span="8">
                         <el-date-picker
                           v-model="formData.fieldConfigs[field.name].from"
                           type="datetime"
                           placeholder="开始日期"
                         />
                       </el-col>
-                      <el-col :span="11">
+                      <el-col :span="8">
                         <el-date-picker
                           v-model="formData.fieldConfigs[field.name].to"
                           type="datetime"
                           placeholder="结束日期"
                         />
+                      </el-col>
+                      <el-col :span="8">
+                        <el-select
+                          v-model="formData.fieldConfigs[field.name].format"
+                          placeholder="日期格式"
+                        >
+                          <el-option label="YYYY-MM-DD" value="YYYY-MM-DD" />
+                          <el-option label="YYYY-MM-DD HH:mm:ss" value="YYYY-MM-DD HH:mm:ss" />
+                          <el-option label="YYYY/MM/DD" value="YYYY/MM/DD" />
+                          <el-option label="MM-DD" value="MM-DD" />
+                        </el-select>
+                      </el-col>
+                    </el-row>
+                  </template>
+
+                  <!-- 手机号类型配置 -->
+                  <template v-else-if="formData.fieldConfigs[field.name].type === 'phone'">
+                    <el-row :gutter="10">
+                      <el-col :span="12">
+                        <el-select
+                          v-model="formData.fieldConfigs[field.name].format"
+                          placeholder="号码格式"
+                        >
+                          <el-option label="手机号 (1xx)" value="1##########" />
+                          <el-option label="座机 (0xx)" value="0##-########" />
+                          <el-option label="400电话" value="400-###-####" />
+                        </el-select>
+                      </el-col>
+                    </el-row>
+                  </template>
+
+                  <!-- 地址类型配置 -->
+                  <template v-else-if="formData.fieldConfigs[field.name].type === 'address'">
+                    <el-row :gutter="10">
+                      <el-col :span="12">
+                        <el-select
+                          v-model="formData.fieldConfigs[field.name].format"
+                          placeholder="地址格式"
+                        >
+                          <el-option label="完整地址" value="full" />
+                          <el-option label="简短地址" value="short" />
+                        </el-select>
                       </el-col>
                     </el-row>
                   </template>
@@ -242,7 +336,8 @@
 
 <script lang="ts" setup>
 import { ref, reactive, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowDown, Search } from '@element-plus/icons-vue'
 import { Codemirror } from 'vue-codemirror'
 import { sql } from '@codemirror/lang-sql'
 import { oneDark } from '@codemirror/theme-one-dark'
@@ -261,6 +356,10 @@ interface FieldConfig {
   casing?: 'none' | 'lower' | 'upper'
   from?: Date
   to?: Date
+  nullable?: boolean
+  format?: string
+  prefix?: string
+  suffix?: string
 }
 
 interface FormData {
@@ -274,6 +373,8 @@ interface FormData {
 const formRef = ref<FormInstance>()
 const previewData = ref('')
 const generating = ref(false)
+const fieldSearchText = ref('')
+const fieldTypeFilter = ref('')
 const tableStore = useTableInfoStore()
 
 // CodeMirror 配置
@@ -291,6 +392,20 @@ const formData = reactive<FormData>({
   count: 10,
   format: 'sql',
   fieldConfigs: {}
+})
+
+// 过滤后的字段列表
+const filteredFields = computed(() => {
+  return fields.value.filter(field => {
+    const matchesSearch = !fieldSearchText.value || 
+      field.name.toLowerCase().includes(fieldSearchText.value.toLowerCase()) ||
+      field.comment?.toLowerCase().includes(fieldSearchText.value.toLowerCase())
+    
+    const matchesType = !fieldTypeFilter.value ||
+      formData.fieldConfigs[field.name]?.type === fieldTypeFilter.value
+    
+    return matchesSearch && matchesType
+  })
 })
 
 // 初始化
@@ -322,7 +437,7 @@ const handleTableChange = async (tableId: number) => {
     const table = await tableStore.getTableDetail(tableId)
     if (table) {
       fields.value = table.fields
-      // 尝试加载保存的模板
+      // 尝试加载存的模板
       loadTemplate(tableId)
       // 如果没有模板，使用默认配置
       if (Object.keys(formData.fieldConfigs).length === 0) {
@@ -346,67 +461,120 @@ const handleTableChange = async (tableId: number) => {
   }
 }
 
+// 格式化日期
+const formatDate = (date: Date, format: string): string => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+
+  return format
+    .replace('YYYY', String(year))
+    .replace('MM', month)
+    .replace('DD', day)
+    .replace('HH', hours)
+    .replace('mm', minutes)
+    .replace('ss', seconds)
+}
+
 // 生成单个值
 const generateValue = (fieldName: string): any => {
   const config = formData.fieldConfigs[fieldName]
   if (!config) return null
+  if (config.nullable && Math.random() < 0.1) return null // 10% 概率生成空值
 
   try {
+    let value: any = null
     switch (config.type) {
       case 'autoIncrement':
         return null // 由数据库自动生成
       case 'number':
-        return faker.number.float({
+        value = faker.number.float({
           min: config.min ?? 0,
           max: config.max ?? 100,
           precision: config.precision ?? 0
         })
+        break
       case 'string':
-        let value = faker.string.alpha(config.length ?? 10)
+        value = faker.string.alpha(config.length ?? 10)
+        if (config.prefix) value = config.prefix + value
+        if (config.suffix) value = value + config.suffix
         switch (config.casing) {
           case 'lower':
-            return value.toLowerCase()
+            value = value.toLowerCase()
+            break
           case 'upper':
-            return value.toUpperCase()
-          default:
-            return value
+            value = value.toUpperCase()
+            break
         }
+        break
       case 'boolean':
-        return faker.datatype.boolean()
+        value = faker.datatype.boolean()
+        break
       case 'datetime':
-        return faker.date.between({
+        value = faker.date.between({
           from: config.from ?? new Date(2020, 0, 1),
           to: config.to ?? new Date()
         })
+        if (config.format) {
+          value = formatDate(value, config.format)
+        }
+        break
       case 'name':
-        return faker.person.fullName()
+        value = faker.person.fullName()
+        break
       case 'lastName':
-        return faker.person.lastName()
+        value = faker.person.lastName()
+        break
       case 'firstName':
-        return faker.person.firstName()
+        value = faker.person.firstName()
+        break
       case 'username':
-        return faker.internet.userName()
+        value = faker.internet.userName()
+        break
       case 'email':
-        return faker.internet.email()
+        value = faker.internet.email()
+        break
       case 'phone':
-        return faker.phone.number('1##########') // 生成中国手机号格式
+        value = faker.phone.number(config.format ?? '1##########')
+        break
       case 'address':
-        return `${faker.location.state()}${faker.location.city()}${faker.location.street()}` // 生成中国地址格式
+        value = config.format === 'short' 
+          ? `${faker.location.city()}${faker.location.street()}`
+          : `${faker.location.state()}${faker.location.city()}${faker.location.street()}`
+        break
       case 'company':
-        return faker.company.name()
+        value = faker.company.name()
+        break
       case 'jobTitle':
-        return faker.person.jobTitle()
+        value = faker.person.jobTitle()
+        break
       case 'department':
-        return faker.commerce.department()
+        value = faker.commerce.department()
+        break
       case 'domain':
-        return faker.internet.domainName()
+        value = faker.internet.domainName()
+        break
       case 'url':
-        return faker.internet.url()
+        value = faker.internet.url()
+        break
       case 'ip':
-        return faker.internet.ip()
+        value = faker.internet.ip()
+        break
       default:
         return null
     }
+
+    if (config.prefix && typeof value === 'string') {
+      value = config.prefix + value
+    }
+    if (config.suffix && typeof value === 'string') {
+      value = value + config.suffix
+    }
+
+    return value
   } catch (error) {
     console.error(`Error generating value for ${fieldName}:`, error)
     return null
@@ -614,6 +782,68 @@ const loadTemplate = (tableId: number) => {
   }
 }
 
+// 批量操作处理
+const handleBatchCommand = (command: string) => {
+  try {
+    switch (command) {
+      case 'setString':
+        fields.value.forEach(field => {
+          if (formData.fieldConfigs[field.name]) {
+            formData.fieldConfigs[field.name].type = 'string'
+          }
+        })
+        ElMessage.success('已将所有字段设置为字符串类型')
+        break
+      case 'setNumber':
+        fields.value.forEach(field => {
+          if (formData.fieldConfigs[field.name]) {
+            formData.fieldConfigs[field.name].type = 'number'
+          }
+        })
+        ElMessage.success('已将所有字段设置为数字类型')
+        break
+      case 'setNull':
+        fields.value.forEach(field => {
+          if (formData.fieldConfigs[field.name]) {
+            formData.fieldConfigs[field.name].nullable = true
+          }
+        })
+        ElMessage.success('已允许所有字段为空')
+        break
+      case 'setNotNull':
+        fields.value.forEach(field => {
+          if (formData.fieldConfigs[field.name]) {
+            formData.fieldConfigs[field.name].nullable = false
+          }
+        })
+        ElMessage.success('已设置所有字段不允许为空')
+        break
+    }
+  } catch (error) {
+    console.error('Batch operation failed:', error)
+    ElMessage.error('批量操作失败')
+  }
+}
+
+// 删除模板
+const handleDeleteTemplate = async () => {
+  try {
+    await ElMessageBox.confirm('确定要删除当前表的模板吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    
+    localStorage.removeItem(`mock_template_${formData.table}`)
+    ElMessage.success('模板删除成功')
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('Delete template failed:', error)
+      ElMessage.error('模板删除失败')
+    }
+  }
+}
+
 // 初始化
 init()
 </script>
@@ -623,6 +853,16 @@ init()
   padding: 20px;
   
   .mock-data {
+    .field-filters {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+
+      .field-search {
+        width: 200px;
+      }
+    }
+
     .field-config {
       margin-bottom: 20px;
       padding-bottom: 20px;
