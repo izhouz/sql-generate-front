@@ -1,21 +1,38 @@
 {
-  "name": "sql-generate-front-vue",
+  "name": "sql-generate-front",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
+    "build": "vue-tsc && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "element-plus": "^2.9.1",
-    "vue": "^3.5.13"
+    "@element-plus/icons-vue": "^2.1.0",
+    "@formily/core": "^2.2.24",
+    "@formily/element-plus": "^2.2.0",
+    "@formily/vue": "^2.2.24",
+    "@vueuse/core": "^10.2.1",
+    "axios": "^1.4.0",
+    "element-plus": "^2.3.7",
+    "pinia": "^2.1.4",
+    "vue": "^3.3.4",
+    "vue-router": "^4.2.4",
+    "@faker-js/faker": "^8.0.2",
+    "@codemirror/lang-sql": "^6.5.2",
+    "@codemirror/state": "^6.2.1",
+    "@codemirror/theme-one-dark": "^6.1.2",
+    "@codemirror/view": "^6.14.0",
+    "vue-codemirror": "^6.1.1",
+    "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^5.2.1",
-    "typescript": "~5.6.2",
-    "vite": "^6.0.1",
-    "vue-tsc": "^2.1.10"
+    "@types/node": "^20.3.3",
+    "@vitejs/plugin-vue": "^4.2.3",
+    "sass": "^1.63.6",
+    "typescript": "^5.1.6",
+    "vite": "^4.3.9",
+    "vue-tsc": "^1.8.3"
   }
 }
