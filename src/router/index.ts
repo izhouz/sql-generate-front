@@ -54,6 +54,16 @@ const router = createRouter({
           name: 'Settings',
           component: () => import('@/views/settings/index.vue'),
           meta: { title: '系统设置', icon: 'Setting' }
+        },
+        {
+          path: '/visualization',
+          component: () => import('@/views/visualization/index.vue'),
+          meta: {
+            title: '数据可视化',
+            icon: 'Chart',
+            requiresAuth: true,
+            permissions: ['visualization:view']
+          }
         }
       ]
     },
