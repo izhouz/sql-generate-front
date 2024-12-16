@@ -20,21 +20,28 @@
             v-model="formData.username"
             placeholder="请输入用户名"
             :prefix-icon="User"
+            clearable
+            @keyup.enter="focusPassword"
           />
         </el-form-item>
         
         <el-form-item label="密码" prop="password">
           <el-input
+            ref="passwordRef"
             v-model="formData.password"
             type="password"
             placeholder="请输入密码"
             :prefix-icon="Lock"
             show-password
+            @keyup.enter="handleSubmit"
           />
         </el-form-item>
         
         <el-form-item>
-          <el-checkbox v-model="formData.remember">记住我</el-checkbox>
+          <div class="flex justify-between">
+            <el-checkbox v-model="formData.remember">记住我</el-checkbox>
+            <el-link type="primary" @click="handleForgotPassword">忘记密码？</el-link>
+          </div>
         </el-form-item>
         
         <el-form-item>
@@ -44,30 +51,50 @@
             class="submit-btn"
             @click="handleSubmit"
           >
-            登录
+            {{ loading ? '登录中...' : '登录' }}
           </el-button>
         </el-form-item>
+
+        <el-divider>
+          <span class="text-gray">其他登录方式</span>
+        </el-divider>
+
+        <div class="other-login">
+          <el-tooltip content="GitHub 登录" placement="top">
+            <el-button circle>
+              <el-icon><svg-icon icon="github" /></el-icon>
+            </el-button>
+          </el-tooltip>
+          
+          <el-tooltip content="微信登录" placement="top">
+            <el-button circle>
+              <el-icon><svg-icon icon="wechat" /></el-icon>
+            </el-button>
+          </el-tooltip>
+        </div>
       </el-form>
     </el-card>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
 import type { FormInstance } from 'element-plus'
 import { useUserStore } from '@/store/modules/user'
+import type { LoginForm } from '@/types/user'
 
 // 状态
 const loading = ref(false)
 const formRef = ref<FormInstance>()
+const passwordRef = ref<HTMLElement>()
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 
-const formData = reactive({
+const formData = reactive<LoginForm>({
   username: '',
   password: '',
   remember: false
@@ -85,6 +112,21 @@ const rules = {
   ]
 }
 
+// 初始化
+onMounted(() => {
+  // 获取记住的用户名
+  const rememberedUsername = userStore.getRememberedUsername()
+  if (rememberedUsername) {
+    formData.username = rememberedUsername
+    formData.remember = true
+  }
+})
+
+// 聚焦密码输入框
+const focusPassword = () => {
+  passwordRef.value?.focus()
+}
+
 // 提交表单
 const handleSubmit = async () => {
   if (!formRef.value) return
@@ -93,17 +135,24 @@ const handleSubmit = async () => {
     await formRef.value.validate()
     loading.value = true
     
-    const success = await userStore.login(formData.username, formData.password)
+    const success = await userStore.login(formData)
     if (success) {
       ElMessage.success('登录成功')
       const redirect = route.query.redirect as string
       router.push(redirect || '/')
+    } else {
+      ElMessage.error('用户名或密码错误')
     }
   } catch (error) {
     console.error('Login failed:', error)
   } finally {
     loading.value = false
   }
+}
+
+// 处理忘记密码
+const handleForgotPassword = () => {
+  ElMessage.info('请联系管理员重置密码')
 }
 </script>
 
@@ -122,7 +171,7 @@ const handleSubmit = async () => {
   
   .card-header {
     text-align: center;
-    color: var(--text-color-primary);
+    color: var(--el-text-color-primary);
     
     h2 {
       margin-bottom: 10px;
@@ -130,7 +179,7 @@ const handleSubmit = async () => {
     }
     
     p {
-      color: var(--text-color-secondary);
+      color: var(--el-text-color-secondary);
       font-size: 14px;
     }
   }
@@ -142,6 +191,18 @@ const handleSubmit = async () => {
   .submit-btn {
     width: 100%;
     padding: 12px 0;
+  }
+
+  .other-login {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .text-gray {
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
   }
 }
 </style> 
