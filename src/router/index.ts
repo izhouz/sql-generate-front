@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { isAuthenticated } from '@/utils/auth'
+import AdvancedCharts from '@/components/visualization/AdvancedCharts.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -57,13 +58,32 @@ const router = createRouter({
         },
         {
           path: '/visualization',
+          name: 'visualization',
           component: () => import('@/views/visualization/index.vue'),
           meta: {
             title: '数据可视化',
-            icon: 'Chart',
-            requiresAuth: true,
-            permissions: ['visualization:view']
-          }
+            icon: 'chart'
+          },
+          children: [
+            {
+              path: 'basic',
+              name: 'basic-charts',
+              component: () => import('@/components/visualization/DataStatistics.vue'),
+              meta: {
+                title: '基础图表',
+                icon: 'pie-chart'
+              }
+            },
+            {
+              path: 'advanced',
+              name: 'advanced-charts',
+              component: AdvancedCharts,
+              meta: {
+                title: '高级图表',
+                icon: 'trend-charts'
+              }
+            }
+          ]
         }
       ]
     },

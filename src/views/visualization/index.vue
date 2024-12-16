@@ -1,54 +1,45 @@
 <template>
-  <page-container>
-    <template #header>
-      <div class="page-header">
-        <h2>数据可视化</h2>
-        <p class="description">
-          通过图表和关系图直观展示数据库结构和操作统计信息
-        </p>
-      </div>
-    </template>
-
-    <el-tabs v-model="activeTab" class="visualization-tabs">
-      <el-tab-pane label="表关系图" name="relation">
-        <div class="relation-graph-container">
-          <table-relation-graph />
-        </div>
+  <div class="visualization-page">
+    <el-tabs v-model="activeTab" class="demo-tabs" @tab-click="handleClick">
+      <el-tab-pane label="基础图表" name="basic">
+        <router-view v-if="activeTab === 'basic'" />
       </el-tab-pane>
-      
-      <el-tab-pane label="数据统计" name="statistics">
-        <data-statistics />
+      <el-tab-pane label="高级图表" name="advanced">
+        <router-view v-if="activeTab === 'advanced'" />
       </el-tab-pane>
     </el-tabs>
-  </page-container>
+  </div>
 </template>
 
 <script lang="ts" setup>
-import { ref } from 'vue'
-import PageContainer from '@/components/layout/PageContainer.vue'
-import TableRelationGraph from '@/components/visualization/TableRelationGraph.vue'
-import DataStatistics from '@/components/visualization/DataStatistics.vue'
+import { ref, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 
-const activeTab = ref('relation')
+const router = useRouter()
+const route = useRoute()
+const activeTab = ref('basic')
+
+// 根据路由更新当前标签
+watch(() => route.path, (path) => {
+  if (path.includes('advanced')) {
+    activeTab.value = 'advanced'
+  } else {
+    activeTab.value = 'basic'
+  }
+}, { immediate: true })
+
+// 处理标签切换
+const handleClick = () => {
+  router.push(`/visualization/${activeTab.value}`)
+}
 </script>
 
 <style lang="scss" scoped>
-.page-header {
-  .description {
-    color: var(--el-text-color-secondary);
-    font-size: 14px;
-    margin-top: 8px;
-  }
-}
-
-.visualization-tabs {
+.visualization-page {
+  padding: 20px;
+  
   :deep(.el-tabs__content) {
     padding: 20px 0;
   }
-}
-
-.relation-graph-container {
-  height: calc(100vh - 300px);
-  min-height: 500px;
 }
 </style> 

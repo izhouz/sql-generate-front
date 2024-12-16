@@ -16,15 +16,20 @@
     "@codemirror/view": "^6.14.0",
     "@element-plus/icons-vue": "^2.1.0",
     "@faker-js/faker": "^8.0.2",
+    "@types/file-saver": "^2.0.7",
     "@vueuse/core": "^10.2.1",
     "axios": "^1.4.0",
+    "dayjs": "^1.11.13",
     "echarts": "^5.5.1",
     "element-plus": "^2.3.7",
+    "file-saver": "^2.0.5",
+    "html2canvas": "^1.4.1",
     "pinia": "^2.1.4",
     "vue": "^3.3.4",
     "vue-codemirror": "^6.1.1",
     "vue-router": "^4.2.4",
-    "vuedraggable": "^4.1.0"
+    "vuedraggable": "^4.1.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^20.17.10",
